@@ -13,12 +13,16 @@ dependencies = [
   "uvicorn[standard]==0.34.0",
   "pydantic==2.11.3",
   "requests==2.32.3",
-  "openai==1.75.0",
+  "openai==2.7.2",
   "PyYAML==6.0.2",
+  "openenv-core>=0.2.0",
 ]
+
+[project.scripts]
+server = "server.cli:main"
 
 [tool.setuptools]
 include-package-data = true
 
 [tool.setuptools.packages.find]
-include = ["environment*"]
+include = ["environment*", "server*"]
