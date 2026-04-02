@@ -1,0 +1,40 @@
+name: Emergency First-Response Decision Engine
+description: Deterministic decision-support environment for non-expert first responders managing cardiac arrest, hemorrhage, and roadside trauma workflows.
+version: 1.0.0
+entrypoint: environment.env:EmergencyFirstResponseDecisionEngine
+observation_model: environment.models:Observation
+action_model: environment.models:Action
+reward_model: environment.models:RewardSignal
+tasks:
+  - id: cardiac_arrest_easy
+    difficulty: easy
+    description: Clear cardiac arrest case with visible AED access and an obvious first intervention.
+    grader: environment.grader:EmergencyTaskGrader.grade_easy
+    optimal_sequence:
+      - CALL_EMERGENCY
+      - CHECK_BREATHING
+      - START_CPR
+      - USE_AED
+      - MONITOR_PATIENT
+  - id: severe_bleeding_medium
+    difficulty: medium
+    description: Severe external bleeding with partial physiological visibility and sequential care requirements.
+    grader: environment.grader:EmergencyTaskGrader.grade_medium
+    optimal_sequence:
+      - CHECK_SCENE_SAFETY
+      - CALL_EMERGENCY
+      - APPLY_PRESSURE
+      - CHECK_PULSE
+      - MONITOR_PATIENT
+  - id: road_accident_hard
+    difficulty: hard
+    description: Dynamic roadside trauma requiring reprioritization between hazards, hemorrhage, and airway compromise.
+    grader: environment.grader:EmergencyTaskGrader.grade_hard
+    optimal_sequence:
+      - CHECK_SCENE_SAFETY
+      - CALL_EMERGENCY
+      - APPLY_PRESSURE
+      - CHECK_BREATHING
+      - CONTROL_AIRWAY
+      - CHECK_PULSE
+      - MONITOR_PATIENT

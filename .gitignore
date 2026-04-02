@@ -1,0 +1,75 @@
+# Python caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Python virtualenv / environment folders
+venv/
+env/
+.venv/
+.ENV/
+.Python
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Python package build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+pip-wheel-metadata/
+
+# environment/config local
+*.env
+*.local
+.envrc
+openenv.yaml   # if this is personal; remove if this is tracked config
+
+# IDE/editor
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.vscode*
+*.code-workspace
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# logs and sqlite
+*.log
+*.sql
+*.sqlite3
+
+# artifacts / output
+artifacts/
+*.json   # NOTE: if q_table.json should be tracked, remove this line or add !artifacts/q_table.json
+*.pkl
+*.h5
+*.pt
+
+# node / frontend
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.env
+frontend/.cache/
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+frontend/.pnp/
+frontend/.pnp.js
+
+# npm/yarn/pnpm
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+.pnpm-debug.log*
+.pnpm/
+
+# docker
+docker-compose.override.yml
+*.stackdump
