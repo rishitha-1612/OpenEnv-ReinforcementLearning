@@ -85,7 +85,7 @@ class Observation(BaseModel):
     patient_condition: PatientCondition
     time_elapsed: int
     actions_taken: list[ActionType]
-    environment_context: EnvironmentContext
+    environment_context: EnvironmentContext | str
     available_actions: list[ActionType]
     last_action_effect: str
     risk_level: str
@@ -130,6 +130,9 @@ class InternalState(BaseModel):
     responsiveness_checked: bool = False
     breathing_checked: bool = False
     pulse_checked: bool = False
+    steps_without_critical_action: int = 0
+    steps_to_first_critical_action: int | None = None
+    revealed_fields: set[str] = Field(default_factory=set)
     done: bool = False
     termination_reason: str | None = None
     success: bool = False
