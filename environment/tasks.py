@@ -30,9 +30,9 @@ CARDIAC_ARREST_EASY = TaskDefinition(
         airway_status=AirwayStatus.CLEAR,
     ),
     initial_observed_condition=PatientCondition(
-        conscious_status=ConsciousStatus.UNCONSCIOUS,
-        breathing_status=BreathingStatus.ABSENT,
-        bleeding_severity=BleedingSeverity.NONE,
+        conscious_status=ConsciousStatus.UNKNOWN,
+        breathing_status=BreathingStatus.UNKNOWN,
+        bleeding_severity=BleedingSeverity.UNKNOWN,
         pulse_status=PulseStatus.UNKNOWN,
         airway_status=AirwayStatus.UNKNOWN,
     ),
@@ -72,11 +72,11 @@ SEVERE_BLEEDING_MEDIUM = TaskDefinition(
         airway_status=AirwayStatus.CLEAR,
     ),
     initial_observed_condition=PatientCondition(
-        conscious_status=ConsciousStatus.ALERT,
-        breathing_status=BreathingStatus.NORMAL,
+        conscious_status=ConsciousStatus.UNKNOWN,
+        breathing_status=BreathingStatus.UNKNOWN,
         bleeding_severity=BleedingSeverity.SEVERE,
         pulse_status=PulseStatus.UNKNOWN,
-        airway_status=AirwayStatus.CLEAR,
+        airway_status=AirwayStatus.UNKNOWN,
     ),
     environment_context=EnvironmentContext(
         location_type="restaurant_kitchen",
@@ -114,7 +114,7 @@ ROAD_ACCIDENT_HARD = TaskDefinition(
         airway_status=AirwayStatus.COMPROMISED,
     ),
     initial_observed_condition=PatientCondition(
-        conscious_status=ConsciousStatus.CONFUSED,
+        conscious_status=ConsciousStatus.UNKNOWN,
         breathing_status=BreathingStatus.UNKNOWN,
         bleeding_severity=BleedingSeverity.SEVERE,
         pulse_status=PulseStatus.UNKNOWN,
@@ -142,10 +142,97 @@ ROAD_ACCIDENT_HARD = TaskDefinition(
 )
 
 
+ANAPHYLAXIS_MEDIUM = TaskDefinition(
+    task_id="anaphylaxis_medium",
+    difficulty=DifficultyLevel.MEDIUM,
+    description="Rapid allergic airway emergency requiring early breathing assessment and airway support.",
+    scenario_summary=(
+        "A 28-year-old has a severe allergic reaction after eating at a restaurant. She has hives, facial swelling, "
+        "difficulty breathing, and appears lightheaded with dropping blood pressure. An EpiPen is reported to be in her bag."
+    ),
+    initial_true_condition=PatientCondition(
+        conscious_status=ConsciousStatus.CONFUSED,
+        breathing_status=BreathingStatus.SHALLOW,
+        bleeding_severity=BleedingSeverity.NONE,
+        pulse_status=PulseStatus.WEAK,
+        airway_status=AirwayStatus.COMPROMISED,
+    ),
+    initial_observed_condition=PatientCondition(
+        conscious_status=ConsciousStatus.UNKNOWN,
+        breathing_status=BreathingStatus.UNKNOWN,
+        bleeding_severity=BleedingSeverity.UNKNOWN,
+        pulse_status=PulseStatus.UNKNOWN,
+        airway_status=AirwayStatus.UNKNOWN,
+    ),
+    environment_context=EnvironmentContext(
+        location_type="restaurant_dining_room",
+        help_availability="bystanders and staff nearby",
+        hazards=[],
+        equipment_available=["phone", "first_aid_kit", "patient_epipen"],
+    ),
+    max_steps=12,
+    optimal_sequence=[
+        ActionType.CHECK_SCENE_SAFETY,
+        ActionType.CALL_EMERGENCY,
+        ActionType.CHECK_BREATHING,
+        ActionType.CONTROL_AIRWAY,
+        ActionType.CHECK_PULSE,
+        ActionType.MONITOR_PATIENT,
+    ],
+    success_criteria="Airway risk recognized early, emergency help activated, and respiratory status monitored after intervention.",
+    failure_criteria="Delayed airway support allows progressive airway obstruction and cardiovascular collapse.",
+    hidden_notes={"trigger": "food_allergy"},
+)
+
+
+CHOKING_EASY = TaskDefinition(
+    task_id="choking_easy",
+    difficulty=DifficultyLevel.EASY,
+    description="Obvious upper-airway obstruction where delay is especially dangerous.",
+    scenario_summary=(
+        "An elderly man at a restaurant is clutching his throat, cannot speak or cough, and his face is turning red. "
+        "No breathing sounds are audible and bystanders are present."
+    ),
+    initial_true_condition=PatientCondition(
+        conscious_status=ConsciousStatus.ALERT,
+        breathing_status=BreathingStatus.ABSENT,
+        bleeding_severity=BleedingSeverity.NONE,
+        pulse_status=PulseStatus.WEAK,
+        airway_status=AirwayStatus.COMPROMISED,
+    ),
+    initial_observed_condition=PatientCondition(
+        conscious_status=ConsciousStatus.UNKNOWN,
+        breathing_status=BreathingStatus.UNKNOWN,
+        bleeding_severity=BleedingSeverity.UNKNOWN,
+        pulse_status=PulseStatus.UNKNOWN,
+        airway_status=AirwayStatus.UNKNOWN,
+    ),
+    environment_context=EnvironmentContext(
+        location_type="restaurant_dining_room",
+        help_availability="multiple bystanders available",
+        hazards=[],
+        equipment_available=["phone"],
+    ),
+    max_steps=8,
+    optimal_sequence=[
+        ActionType.CHECK_RESPONSIVENESS,
+        ActionType.CALL_EMERGENCY,
+        ActionType.CONTROL_AIRWAY,
+        ActionType.CHECK_BREATHING,
+        ActionType.MONITOR_PATIENT,
+    ],
+    success_criteria="Airway obstruction relieved early and the patient remains under observation while help is on the way.",
+    failure_criteria="Waiting or delayed airway management leads to unconsciousness and arrest.",
+    hidden_notes={"obstruction": "foreign_body"},
+)
+
+
 TASKS: dict[str, TaskDefinition] = {
     CARDIAC_ARREST_EASY.task_id: CARDIAC_ARREST_EASY,
     SEVERE_BLEEDING_MEDIUM.task_id: SEVERE_BLEEDING_MEDIUM,
     ROAD_ACCIDENT_HARD.task_id: ROAD_ACCIDENT_HARD,
+    ANAPHYLAXIS_MEDIUM.task_id: ANAPHYLAXIS_MEDIUM,
+    CHOKING_EASY.task_id: CHOKING_EASY,
 }
 
 

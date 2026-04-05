@@ -1,5 +1,5 @@
 name: Emergency First-Response Decision Engine
-description: Deterministic decision-support environment for non-expert first responders managing cardiac arrest, hemorrhage, and roadside trauma workflows.
+description: Deterministic decision-support environment for non-expert first responders managing cardiac arrest, hemorrhage, airway compromise, and restaurant emergency workflows.
 version: 1.0.0
 entrypoint: environment.env:EmergencyFirstResponseDecisionEngine
 observation_model: environment.models:Observation
@@ -37,4 +37,25 @@ tasks:
       - CHECK_BREATHING
       - CONTROL_AIRWAY
       - CHECK_PULSE
+      - MONITOR_PATIENT
+  - id: anaphylaxis_medium
+    difficulty: medium
+    description: Severe allergic reaction with airway compromise where breathing assessment must precede airway support.
+    grader: environment.grader:EmergencyTaskGrader.grade_anaphylaxis
+    optimal_sequence:
+      - CHECK_SCENE_SAFETY
+      - CALL_EMERGENCY
+      - CHECK_BREATHING
+      - CONTROL_AIRWAY
+      - CHECK_PULSE
+      - MONITOR_PATIENT
+  - id: choking_easy
+    difficulty: easy
+    description: Obvious choking case where delays are heavily penalized and airway control is urgent.
+    grader: environment.grader:EmergencyTaskGrader.grade_choking
+    optimal_sequence:
+      - CHECK_RESPONSIVENESS
+      - CALL_EMERGENCY
+      - CONTROL_AIRWAY
+      - CHECK_BREATHING
       - MONITOR_PATIENT

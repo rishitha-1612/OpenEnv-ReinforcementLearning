@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from typing import Any
 
@@ -24,36 +25,61 @@ class BaselineEmergencyAgent:
         self._client = client
         self._model_name = model_name
         self._rl_agent = rl_agent
+        self.last_decision_source = "baseline"
+        self.last_llm_response: dict[str, Any] | None = None
 
     def choose_action(self, observation: Observation) -> ActionType:
-        if self._rl_agent is not None:
-            return self._rl_agent.choose_action(observation, greedy=True)
-
         prompt = self._build_prompt(observation)
+
         try:
             completion = self._client.chat.completions.create(
                 model=self._model_name,
                 temperature=0,
-                max_tokens=16,
+                max_tokens=256,
+                response_format={"type": "json_object"},
                 messages=[
                     {
                         "role": "system",
                         "content": (
-                            "You are a first-response decision policy. Return exactly one action token from "
-                            "the allowed action list and nothing else."
+                            "You are a first-response clinical decision policy. Think through the scenario step by step, "
+                            "then return strict JSON with keys 'reasoning' and 'action'. The 'action' value must be exactly "
+                            "one action from the available action list."
                         ),
                     },
                     {"role": "user", "content": prompt},
                 ],
             )
-            candidate = (completion.choices[0].message.content or "").strip().split()[0]
-            return ActionType(candidate)
+            payload = json.loads(completion.choices[0].message.content or "{}")
+            self.last_llm_response = payload
+            candidate = payload.get("action")
+            if isinstance(candidate, str):
+                action = ActionType(candidate)
+                if action in observation.available_actions:
+                    self.last_decision_source = "llm"
+                    return action
         except Exception:
-            return self._fallback_policy(observation)
+            self.last_llm_response = None
+
+        if self._rl_agent is not None:
+            rl_action = self._rl_agent.choose_action(observation, greedy=True)
+            if rl_action in observation.available_actions:
+                self.last_decision_source = "rl_fallback"
+                return rl_action
+
+        self.last_decision_source = "policy_fallback"
+        return self._fallback_policy(observation)
 
     def _build_prompt(self, observation: Observation) -> str:
+        environment_context = (
+            observation.environment_context
+            if isinstance(observation.environment_context, str)
+            else observation.environment_context.model_dump()
+        )
         return (
+            "Decide the next emergency response action.\n"
             f"task_id={observation.task_id}\n"
+            f"difficulty={observation.difficulty.value}\n"
+            f"scenario_summary={observation.scenario_summary}\n"
             f"time_elapsed={observation.time_elapsed}\n"
             f"risk_level={observation.risk_level}\n"
             f"conscious_status={observation.patient_condition.conscious_status.value}\n"
@@ -61,22 +87,29 @@ class BaselineEmergencyAgent:
             f"bleeding_severity={observation.patient_condition.bleeding_severity.value}\n"
             f"pulse_status={observation.patient_condition.pulse_status.value}\n"
             f"airway_status={observation.patient_condition.airway_status.value}\n"
+            f"environment_context={environment_context}\n"
             f"actions_taken={[action.value for action in observation.actions_taken]}\n"
             f"available_actions={[action.value for action in observation.available_actions]}\n"
-            "Respond with one action token."
+            "Return JSON exactly in this shape:\n"
+            '{\n'
+            '  "reasoning": "step-by-step clinical reasoning here",\n'
+            '  "action": "ACTION_NAME"\n'
+            '}'
         )
 
     def _fallback_policy(self, observation: Observation) -> ActionType:
         planned_actions = TASKS[observation.task_id].optimal_sequence
         next_index = len(observation.actions_taken)
         if next_index < len(planned_actions):
-            return planned_actions[next_index]
+            candidate = planned_actions[next_index]
+            if candidate in observation.available_actions:
+                return candidate
         return ActionType.MONITOR_PATIENT
 
 
 def build_client() -> OpenAI:
-    api_key = OPENAI_API_KEY or HF_TOKEN or "missing-token"
-    return OpenAI(base_url=API_BASE_URL.rstrip("/"), api_key=api_key)
+    api_key = HF_TOKEN or OPENAI_API_KEY or "missing-token"
+    return OpenAI(base_url=API_BASE_URL.rstrip("/"), api_key=api_key, max_retries=0, timeout=3.0)
 
 
 def log_start(task: str) -> None:
@@ -94,6 +127,10 @@ def log_step(step: int, action: str, reward: float, done: bool, error: str | Non
 def log_end(success: bool, steps: int, rewards: list[float]) -> None:
     rewards_str = ",".join(f"{reward:.2f}" for reward in rewards)
     print(f"[END] success={str(success).lower()} steps={steps} rewards={rewards_str}", flush=True)
+
+
+def log_llm(step: int, source: str) -> None:
+    print(f"[LLM] step={step} source={source}", flush=True)
 
 
 def main() -> None:
@@ -121,6 +158,7 @@ def main() -> None:
             while not done:
                 step_number = steps_taken + 1
                 action = agent.choose_action(observation)
+                log_llm(step_number, agent.last_decision_source)
                 error: str | None = None
 
                 try:
