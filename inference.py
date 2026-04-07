@@ -131,9 +131,12 @@ def log_step(step: int, action: str, reward: float, done: bool, error: str | Non
     )
 
 
-def log_end(success: bool, steps: int, rewards: list[float]) -> None:
+def log_end(success: bool, steps: int, score: float, rewards: list[float]) -> None:
     rewards_str = ",".join(f"{reward:.2f}" for reward in rewards)
-    print(f"[END] success={str(success).lower()} steps={steps} rewards={rewards_str}", flush=True)
+    print(
+        f"[END] success={str(success).lower()} steps={steps} score={score:.2f} rewards={rewards_str}",
+        flush=True,
+    )
 
 
 def main() -> None:
@@ -141,15 +144,6 @@ def main() -> None:
     client = build_client()
     learned_agent = QLearningEmergencyAgent()
     has_learned_policy = learned_agent.load(DEFAULT_Q_TABLE_PATH)
-    if has_learned_policy:
-        evaluation = learned_agent.evaluate()
-        has_learned_policy = all(
-            result["success"] and float(result["score_so_far"]) >= 0.95 for result in evaluation.values()
-        )
-    if not has_learned_policy:
-        learned_agent.train(episodes_per_task=500)
-        learned_agent.save(DEFAULT_Q_TABLE_PATH)
-        has_learned_policy = True
     agent = BaselineEmergencyAgent(
         client=client,
         model_name=MODEL_NAME,
@@ -161,6 +155,7 @@ def main() -> None:
         rewards: list[float] = []
         steps_taken = 0
         success = False
+        score = 0.0
         log_start(task_id)
 
         try:
@@ -175,17 +170,19 @@ def main() -> None:
                 try:
                     observation, reward, done, info = environment.step(Action(action_type=action))
                     success = bool(info.get("success", False))
+                    score = float(info.get("score_so_far", 0.0))
                 except Exception as exc:
                     reward = 0.0
                     done = True
                     error = str(exc)
+                    score = 0.0
 
                 rewards.append(reward)
                 steps_taken = step_number
                 log_step(step_number, action.value, reward, done, error)
 
         finally:
-            log_end(success, steps_taken, rewards)
+            log_end(success, steps_taken, score, rewards)
 
 
 if __name__ == "__main__":
