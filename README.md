@@ -21,7 +21,7 @@ OpenEnv-compatible reinforcement learning environment for emergency decision sup
 
 ## Try It Instantly
 
-👉 **[https://huggingface.co/spaces/Venkat-023/OpenEnv](https://huggingface.co/spaces/Venkat-023/OpenEnv)**
+**[https://huggingface.co/spaces/Venkat-023/OpenEnv](https://huggingface.co/spaces/Venkat-023/OpenEnv)**
 
 No setup needed — open the link and start testing the environment directly from your browser.
 
