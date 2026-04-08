@@ -11,11 +11,81 @@ tags:
 
 # Emergency First-Response Decision Engine
 
-OpenEnv-compatible reinforcement learning environment for emergency first-response decision-making under partial observability, time pressure, and clinically shaped rewards.
+OpenEnv-compatible reinforcement learning environment for emergency decision support under uncertainty, time pressure, and clinical risk.
 
-## What This Repo Does
+## Problem Statement
 
-This environment is designed to evaluate agents that must make medically plausible first-response decisions for:
+In the first few minutes of a medical emergency, the difference between a good decision and a delayed or unsafe decision can determine whether a patient survives. In the real world, early responders are often not paramedics. They are bystanders, family members, security staff, transport workers, school staff, restaurant managers, or ordinary citizens who must act before professional medical help arrives.
+
+Today, most agent benchmarks focus on web navigation, code generation, browsing, or abstract planning tasks. Very few environments test whether an AI system can reason through a time-critical real-world emergency with incomplete information, misleading surface cues, evolving patient state, and a strict requirement for safe action ordering.
+
+This project addresses that gap.
+
+The **Emergency First-Response Decision Engine** is designed as a realistic evaluation and training environment for AI agents that must support early emergency response. It simulates what humans actually do in urgent situations:
+
+- assess the scene
+- identify the most immediate life threat
+- gather missing information
+- choose the next best intervention
+- avoid harmful or premature actions
+- adapt as the patient deteriorates or stabilizes
+
+This is not a game, puzzle, or toy simulator. It is a structured benchmark for testing whether an AI agent can behave like a reliable emergency decision-support assistant.
+
+## Our Intuition
+
+We built this project around a simple but powerful belief:
+
+**If AI is going to be trusted in the real world, it must prove it can reason safely under pressure, not just answer questions in calm settings.**
+
+Emergency care is one of the clearest examples of this challenge. A strong agent cannot rely on pattern matching alone. It must:
+
+- reason sequentially
+- handle partial observability
+- distinguish between similar-looking but clinically different situations
+- prioritize interventions by urgency
+- accept that delay itself changes the state of the world
+
+That is why this benchmark is built around deterioration, hidden state, state-aware action availability, clinically meaningful reward shaping, and deterministic task grading.
+
+## End Goal
+
+Our immediate goal is to build a **serious OpenEnv benchmark for first-response decision support** that can be used to evaluate and train agents on realistic emergency workflows.
+
+Our long-term goal is larger:
+
+We want to help create a future where AI systems can become dependable, auditable, and safe decision-support partners in high-stakes real-world settings. That does not mean replacing clinicians or emergency professionals. It means building agentic systems that can:
+
+- support untrained responders during the first minutes of crisis
+- provide structured guidance under uncertainty
+- surface the right next step instead of generic advice
+- be benchmarked transparently with reproducible scoring
+- expose failure modes before deployment into sensitive domains
+
+In other words, we want this project to contribute to a future where agent evaluation moves beyond convenience tasks and into domains that genuinely matter for human safety.
+
+## What Makes This Different
+
+This environment is designed to be memorable to judges and useful to researchers because it combines five properties that are rarely present together:
+
+1. **Real-world utility**
+   It models a task humans actually perform during emergencies.
+
+2. **Partial observability**
+   The full patient state is not visible at reset. Information must be earned by assessment.
+
+3. **Clinically meaningful sequencing**
+   Actions are not just right or wrong; they can be correct but late, technically available but unsafe, or superficially sensible while missing the true life threat.
+
+4. **Deceptive hard-case design**
+   The hardest trauma task intentionally hides the real danger behind misleading early cues.
+
+5. **Deterministic evaluation**
+   The benchmark is reproducible, auditable, and suitable for consistent grading.
+
+## Environment Overview
+
+The environment simulates emergency first-response decision-making across a set of escalating scenarios:
 
 - cardiac arrest
 - severe external bleeding
@@ -23,48 +93,57 @@ This environment is designed to evaluate agents that must make medically plausib
 - anaphylaxis
 - choking
 
-It includes:
+The benchmark is implemented around the standard OpenEnv interface:
 
-- a FastAPI server in `app.py`
-- an OpenEnv environment in `environment/env.py`
-- deterministic task graders in `environment/grader.py`
-- a tabular Q-learning baseline in `rl_agent.py`
-- an LLM-first inference runner in `inference.py`
-- a React frontend control panel in `frontend/`
+- `reset(task_id: str | None = None) -> Observation`
+- `step(action: Action) -> tuple[Observation, float, bool, dict]`
+- `state() -> InternalState`
 
-## Core Design
+Core files:
 
-The environment intentionally avoids trivial one-shot pattern matching:
+- `environment/env.py`
+- `environment/models.py`
+- `environment/tasks.py`
+- `environment/grader.py`
+- `openenv.yaml`
 
-- observations are partially hidden until the agent performs relevant checks
-- critical delays cause deterioration
-- critical interventions are time-decayed
-- the hard trauma task hides the true diagnosis behind misleading initial cues
-- reward feedback includes a clinical explanation for each step
+## OpenEnv Compliance
 
-## API Surface
+This repository implements the full typed environment interface expected by OpenEnv.
 
-The FastAPI app exposes:
+### Typed Models
 
-| Method | Path | Purpose |
-|---|---|---|
-| `GET` | `/` | Serve frontend build if present |
-| `GET` | `/healthz` | Health check |
-| `GET` | `/state` | Current internal environment state |
-| `GET` | `/tasks` | Task metadata |
-| `POST` | `/reset` | Start or reset an episode |
-| `POST` | `/step` | Advance one action |
-| `GET` | `/docs` | Swagger UI |
+Defined in `environment/models.py`:
 
-`/healthz` still returns:
+- `Observation`
+- `Action`
+- `RewardSignal`
+- `StepOutput`
+- `InternalState`
 
-```json
-{"status": "ok"}
-```
+### Core Methods
 
-## Observation Model
+Defined in `environment/env.py`:
 
-The environment returns an `Observation` with:
+- `reset()`
+- `step()`
+- `state()`
+
+### Metadata
+
+Defined in `openenv.yaml`:
+
+- environment name
+- description
+- entrypoint
+- action model
+- observation model
+- reward model
+- tasks and grader bindings
+
+## Observation Space
+
+Each observation includes:
 
 - `task_id`
 - `difficulty`
@@ -77,9 +156,17 @@ The environment returns an `Observation` with:
 - `last_action_effect`
 - `risk_level`
 
+The `patient_condition` object includes:
+
+- `conscious_status`
+- `breathing_status`
+- `bleeding_severity`
+- `pulse_status`
+- `airway_status`
+
 ### Partial Observability
 
-Some values remain `"unknown"` until the correct assessment action is taken.
+The environment intentionally hides parts of the patient state until the agent performs relevant checks.
 
 Reveal rules:
 
@@ -88,214 +175,223 @@ Reveal rules:
 - `CHECK_PULSE` reveals `pulse_status`
 - `CHECK_SCENE_SAFETY` reveals `environment_context` and `risk_level`
 
-Trauma/bleeding visibility:
+This turns the benchmark from simple label prediction into sequential information-gathering under pressure.
 
-- `bleeding_severity` is visible at reset only for `severe_bleeding_medium`
-- the deceptive hard trauma task starts with bleeding hidden to avoid leaking the true condition too early
+## Action Space
 
-## Scenario-Aware Action Availability
-
-The environment now returns scenario- and state-aware `available_actions` instead of always exposing the full action list.
-
-This improves:
-
-- frontend action panel relevance
-- invalid action handling
-- trajectory realism
-- training signal quality
-
-Examples:
-
-- `USE_AED` only becomes available after CPR has started in the cardiac arrest task
-- `CONTROL_AIRWAY` becomes available in airway-driven tasks after breathing assessment
-- the deceptive hard trauma task opens circulation and stabilization actions only after assessment steps reveal enough context
-
-Invalid submitted actions are handled safely and return a structured penalty instead of crashing the API.
-
-## Reward Signal
-
-Each `step()` response includes:
-
-```json
-{
-  "reward_signal": {
-    "action_reward": 1.0,
-    "reason": "Checked breathing before intervention - aligns with ABC protocol",
-    "time_decay_factor": 1.0,
-    "total": -0.9
-  }
-}
-```
-
-Backward-compatible fields are still included in the reward payload:
-
-- `value`
-- `components`
-- `rationale`
-
-### Reward Meaning
-
-- `action_reward`: direct reward or penalty for the submitted action
-- `reason`: clinical explanation of why that action was rewarded or penalized
-- `time_decay_factor`: intervention urgency multiplier for critical actions
-- `total`: full step reward after base cost, progression, deterioration, and terminal effects
-
-### Clinical Reasoning Strings
-
-Reasons are rule-based, not LLM-generated.
-
-Examples:
-
-- `Checked breathing before intervention - aligns with ABC protocol`
-- `Performed CPR without confirmed pulseless apnea - violates basic life support sequence`
-- `USE_AED applied without confirmed cardiac arrest - contraindicated and potentially harmful`
-- `Assessed circulation to look for occult shock - this is how hidden internal bleeding becomes apparent`
-
-## Time Pressure and Deterioration
-
-Critical actions:
+The environment uses a discrete, structured action space:
 
 - `CALL_EMERGENCY`
+- `CHECK_SCENE_SAFETY`
+- `CHECK_RESPONSIVENESS`
+- `CHECK_BREATHING`
+- `CHECK_PULSE`
 - `START_CPR`
+- `USE_AED`
 - `APPLY_PRESSURE`
 - `CONTROL_AIRWAY`
-- `USE_AED`
+- `PLACE_RECOVERY_POSITION`
+- `MONITOR_PATIENT`
+- `WAIT`
 
-If the agent takes 3 consecutive non-critical actions, the patient deteriorates.
+These actions were chosen to reflect recognizable first-response decisions rather than arbitrary control tokens.
 
-Effects:
+## Reward Design
 
-- cardiac tasks: breathing degrades
-- bleeding tasks: bleeding worsens
-- deceptive trauma task: both can worsen
+The reward function provides dense signal across the full trajectory rather than only at episode termination.
 
-Each deterioration event adds a penalty of `-0.15`.
+Reward characteristics:
 
-## Time-Decay for Critical Interventions
+- positive reward for clinically appropriate actions
+- positive reward for correct sequencing
+- time-discounted reward for delayed critical interventions
+- negative reward for unsafe actions
+- negative reward for repeated actions without reassessment
+- negative reward for deterioration caused by delay
+- terminal bonus for stabilization
+- terminal penalty for critical failure
 
-Critical interventions are discounted using:
+Each step returns a structured `reward_signal` with:
 
-```text
-max(0.5, 1.0 - 0.08 * steps_before_this_action)
-```
+- `action_reward`
+- `reason`
+- `time_decay_factor`
+- `total`
+- compatibility fields such as `value`, `components`, and `rationale`
 
-This creates a medically meaningful reward surface:
-
-- early intervention earns full value
-- delayed intervention still helps, but less
-- benefit bottoms out at 50%
+This makes the reward not only useful for learning, but also inspectable for reviewers.
 
 ## Tasks
 
 Task definitions live in `environment/tasks.py`.
 
-### `cardiac_arrest_easy`
+### 1. Cardiac Arrest — Easy
 
-- obvious arrest
-- AED access nearby
-- straightforward CPR/AED sequence
+This task presents a recognizable public collapse scenario with AED access nearby.
 
-Optimal sequence:
+What the agent must do:
 
-```text
-CALL_EMERGENCY -> CHECK_BREATHING -> START_CPR -> USE_AED -> MONITOR_PATIENT
-```
+- escalate quickly
+- confirm breathing status
+- start CPR
+- use AED
+- monitor after intervention
 
-### `severe_bleeding_medium`
+Why it matters:
 
-- visible major hemorrhage
-- scene hazard considerations
-- requires bleeding control and circulation reassessment
+It tests whether the agent can identify and follow an obvious life-saving protocol without unnecessary delay.
 
-Optimal sequence:
+### 2. Severe Bleeding — Medium
 
-```text
-CHECK_SCENE_SAFETY -> CALL_EMERGENCY -> APPLY_PRESSURE -> CHECK_PULSE -> MONITOR_PATIENT
-```
+This task introduces visible hemorrhage, environmental hazards, and circulation reassessment.
 
-### `road_accident_hard`
+What the agent must do:
 
-- deceptive trauma task
-- minor visible bleeding masks evolving internal hemorrhagic shock
-- true danger is not fully inferable from the opening description
-- rewards ABC-style assessment before stabilization
+- account for hazards
+- escalate appropriately
+- control major bleeding
+- assess pulse
+- monitor for shock
 
-Optimal sequence:
+Why it matters:
 
-```text
-CHECK_SCENE_SAFETY -> CHECK_BREATHING -> CONTROL_AIRWAY -> CALL_EMERGENCY -> CHECK_PULSE -> APPLY_PRESSURE -> MONITOR_PATIENT
-```
+It tests whether the agent can manage a multi-step trauma sequence rather than simply react to one symptom.
 
-### `anaphylaxis_medium`
+### 3. Road Accident with Hidden Shock — Hard
 
-- airway-driven allergic emergency
-- requires breathing check before airway intervention
+This is the most important and most distinctive task in the benchmark.
 
-Optimal sequence:
+The patient appears to have only minor visible bleeding, but the true life threat is evolving internal hemorrhagic shock plus airway compromise.
 
-```text
-CHECK_SCENE_SAFETY -> CALL_EMERGENCY -> CHECK_BREATHING -> CONTROL_AIRWAY -> CHECK_PULSE -> MONITOR_PATIENT
-```
+What the agent must do:
 
-### `choking_easy`
+- avoid being fooled by surface appearance
+- work through ABC-style assessment
+- detect circulation compromise
+- stabilize airway and circulation
+- intervene in the right order before collapse
 
-- obvious airway obstruction
-- delay is heavily penalized
+Why it matters:
 
-Optimal sequence:
+This task moves the environment beyond obvious protocol recall and into genuine sequential reasoning under misleading information.
 
-```text
-CHECK_RESPONSIVENESS -> CALL_EMERGENCY -> CONTROL_AIRWAY -> CHECK_BREATHING -> MONITOR_PATIENT
-```
+### Additional Tasks
 
-## Frontend
+To improve coverage and benchmark breadth, the environment also includes:
 
-The React frontend now:
+- `anaphylaxis_medium`
+- `choking_easy`
 
-- groups actions into priority and secondary buckets
-- uses the live backend `available_actions`
-- highlights the next recommended action from the task flow
-- marks actions already used in the current episode
-- displays `reward_signal.reason`, `action_reward`, `time_decay_factor`, and `total`
+These tasks stress airway-first decision-making in different clinical contexts.
 
-Frontend source:
+## Graders
 
-- `frontend/src/App.jsx`
-- `frontend/src/styles.css`
+Graders are deterministic and implemented in `environment/grader.py`.
 
-## Training and Inference
+Properties:
 
-### RL baseline
+- task-specific
+- programmatic
+- reproducible
+- bounded strictly inside `(0, 1)` for successful trajectories
+- sensitive to harmful actions, ordering mistakes, and inefficiency
 
-Train:
+This was an explicit design choice to satisfy strict validator requirements while preserving meaningful ranking signal.
+
+## State-Aware Action Availability
+
+The environment does not expose every action at every step.
+
+Instead, `available_actions` are scenario- and state-aware. This improves:
+
+- realism
+- training signal quality
+- UI clarity
+- invalid action handling
+
+Examples:
+
+- `USE_AED` is only available after CPR has started in cardiac arrest
+- airway actions become available after relevant assessment in airway-driven tasks
+- the hard trauma task unlocks deeper interventions only after the agent gathers meaningful evidence
+
+## Baseline Agents
+
+The project includes two baseline styles:
+
+### RL Baseline
+
+Implemented in `rl_agent.py`:
+
+- tabular Q-learning
+- deterministic state encoding
+- reproducible seed
+- persistent Q-table artifact
+
+Training:
 
 ```bash
 python train_rl.py
 ```
 
-### LLM-first inference
+### LLM-Driven Inference
 
-Run:
+Implemented in `inference.py`:
 
-```bash
-python inference.py
-```
-
-The inference agent:
-
-- calls the OpenAI-compatible client on every step
-- asks for structured JSON with `reasoning` and `action`
-- falls back to the RL table if the LLM output is invalid
-- falls back again to a deterministic baseline if needed
+- uses the OpenAI Python client
+- reads credentials from environment variables
+- emits strict validator-compatible stdout logs
+- can fall back safely if model output is invalid
 
 Environment variables:
 
-```bash
-API_BASE_URL
-MODEL_NAME
-HF_TOKEN
-OPENAI_API_KEY
-```
+- `OPENAI_API_KEY`
+- `API_BASE_URL`
+- `MODEL_NAME`
+- `HF_TOKEN`
+- `LOCAL_IMAGE_NAME`
+
+## Inference Logging Contract
+
+The inference script is designed to comply with strict evaluation parsers.
+
+It emits only:
+
+- `[START] task=... env=... model=...`
+- `[STEP] step=... action=... reward=... done=... error=...`
+- `[END] success=... steps=... score=... rewards=...`
+
+No extra stdout noise should be emitted during evaluation.
+
+## API Surface
+
+The FastAPI service in `app.py` exposes:
+
+| Method | Path | Purpose |
+|---|---|---|
+| `GET` | `/` | Serve the frontend |
+| `GET` | `/healthz` | Health check |
+| `GET` | `/state` | Current internal environment state |
+| `GET` | `/tasks` | Task metadata |
+| `POST` | `/reset` | Start or reset an episode |
+| `POST` | `/step` | Advance one action |
+| `GET` | `/docs` | Swagger UI |
+
+## Frontend
+
+The React frontend provides a lightweight judge-friendly interface for:
+
+- selecting a task
+- resetting an episode
+- choosing valid actions
+- inspecting observation updates
+- viewing reward explanations
+- testing the environment quickly from one page
+
+Frontend files:
+
+- `frontend/src/App.jsx`
+- `frontend/src/styles.css`
 
 ## Local Setup
 
@@ -316,49 +412,73 @@ npm run dev
 
 ## Docker
 
+Build:
+
 ```bash
 docker build -t emergency-first-response-engine .
+```
+
+Run:
+
+```bash
 docker run --rm -p 7860:7860 emergency-first-response-engine
 ```
 
+Open:
+
+```text
+http://localhost:7860
+```
+
+## Hugging Face Spaces
+
+This repository is prepared for Docker-based Hugging Face Space deployment:
+
+- root service responds on `${PORT:-7860}`
+- frontend and backend are served from one container
+- README includes Space metadata
+- project is tagged with `openenv`
+
 ## Validation
 
-Current validation script:
+Pre-submission validation:
 
 ```bash
 python validate_submission.py
 ```
 
-## Current Limitations
+Recommended external checks:
 
-The project is stronger than the initial version, but a few limits still matter:
+- `openenv validate`
+- `docker build`
+- Space ping against `/reset`
 
-- the frontend action queue is manual and does not yet let the LLM autonomously plan and execute a live multi-step sequence from the web UI
-- the backend still advances one action per `/step`; there is no native batch or macro-action endpoint
-- the RL baseline is tuned for earlier task dynamics and may need retraining or reward retuning for the deceptive hard task
-- scenario-aware `available_actions` improve realism, but they are still rule-based rather than fully physiology-driven
-- reward explanations are rule-based templates and do not yet describe compound effects such as "good action, but total reward dropped because progression worsened"
-- the observation model is intentionally compact and does not yet expose richer cues like skin signs, bystander narration, or trend summaries
-- some medically meaningful interventions are abstracted into coarse actions rather than detailed sub-skills
-- the current frontend is much clearer now, but it still lacks explicit "why unavailable" explanations for actions that are not currently offered
-- the environment remains deterministic by design, which is useful for benchmarking but less realistic than noisy real-world presentation
+## Why This Project Matters
 
-## Recommended Next Enhancements
+This benchmark is ultimately about trust.
 
-- add a `Run with LLM` mode in the frontend that repeatedly calls the model and executes actions from live observations
-- retrain and retune the RL baseline against the deceptive hard task
-- add episode traces/history export for debugging policies
-- expose task-specific action hints and disabled-action reasons separately from `available_actions`
-- add frontend badges for invalid-action penalties and deterioration events
-- extend trauma state with explicit shock markers such as skin signs or mental status changes over time
+A powerful AI agent is not useful in the real world unless we can evaluate how it behaves when:
 
-## Files Most Relevant To Change
+- information is incomplete
+- time matters
+- actions have safety consequences
+- the obvious answer is not always the correct one
 
-- `environment/env.py`
-- `environment/grader.py`
-- `environment/tasks.py`
-- `environment/models.py`
-- `frontend/src/App.jsx`
-- `frontend/src/styles.css`
-- `app.py`
-- `inference.py`
+We believe future agent benchmarks must move beyond convenience tasks and begin measuring whether systems can act responsibly in domains where human welfare is directly at stake.
+
+The Emergency First-Response Decision Engine is our contribution toward that future.
+
+## Our Vision After This Project
+
+By the end of this project, we want to deliver more than a hackathon submission. We want to create a foundation for a broader class of high-stakes agent benchmarks.
+
+The future direction includes:
+
+- richer clinical cues and temporal trend summaries
+- broader first-aid and field-response scenarios
+- stronger RL baselines and policy-learning studies
+- human-evaluable episode traces
+- comparative evaluation across frontier LLMs and RL agents
+- safer, more interpretable decision-support benchmarking for real-world deployment research
+
+If this project succeeds, it demonstrates that OpenEnv environments can be used not only for convenience workflows, but for building the next generation of safety-critical agent evaluation.
