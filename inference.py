@@ -22,6 +22,9 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
 BENCHMARK = os.getenv("OPENENV_BENCHMARK", "emergency_first_response_decision_engine")
 
+if HF_TOKEN is None:
+    raise ValueError("HF_TOKEN environment variable is required")
+
 
 class BaselineEmergencyAgent:
     def __init__(self, client: OpenAI | None, model_name: str, rl_agent: QLearningEmergencyAgent | None = None) -> None:
@@ -115,10 +118,7 @@ class BaselineEmergencyAgent:
 def build_client() -> OpenAI | None:
     if OpenAI is None:
         return None
-    api_key = OPENAI_API_KEY or HF_TOKEN
-    if not api_key:
-        return None
-    return OpenAI(base_url=API_BASE_URL.rstrip("/"), api_key=api_key, max_retries=0, timeout=3.0)
+    return OpenAI(base_url=API_BASE_URL.rstrip("/"), api_key=HF_TOKEN, max_retries=0, timeout=3.0)
 
 
 def log_start(task: str) -> None:
@@ -133,12 +133,9 @@ def log_step(step: int, action: str, reward: float, done: bool, error: str | Non
     )
 
 
-def log_end(success: bool, steps: int, score: float, rewards: list[float]) -> None:
+def log_end(success: bool, steps: int, rewards: list[float]) -> None:
     rewards_str = ",".join(f"{reward:.2f}" for reward in rewards)
-    print(
-        f"[END] success={str(success).lower()} steps={steps} score={score:.2f} rewards={rewards_str}",
-        flush=True,
-    )
+    print(f"[END] success={str(success).lower()} steps={steps} rewards={rewards_str}", flush=True)
 
 
 def main() -> None:
@@ -162,7 +159,6 @@ def main() -> None:
         rewards: list[float] = []
         steps_taken = 0
         success = False
-        score = 0.0
         log_start(task_id)
 
         try:
@@ -177,19 +173,17 @@ def main() -> None:
                 try:
                     observation, reward, done, info = environment.step(Action(action_type=action))
                     success = bool(info.get("success", False))
-                    score = float(info.get("score_so_far", 0.0))
                 except Exception as exc:
                     reward = 0.0
                     done = True
                     error = str(exc)
-                    score = 0.0
 
                 rewards.append(reward)
                 steps_taken = step_number
                 log_step(step_number, action.value, reward, done, error)
 
         finally:
-            log_end(success, steps_taken, score, rewards)
+            log_end(success, steps_taken, rewards)
 
 
 if __name__ == "__main__":

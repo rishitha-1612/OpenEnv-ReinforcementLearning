@@ -332,11 +332,13 @@ Implemented in `inference.py`:
 
 Environment variables:
 
+- `HF_TOKEN`
 - `OPENAI_API_KEY`
 - `API_BASE_URL`
 - `MODEL_NAME`
-- `HF_TOKEN`
 - `LOCAL_IMAGE_NAME`
+
+For official hackathon submission, `HF_TOKEN` is treated as the mandatory primary credential for `inference.py`, while `API_BASE_URL` and `MODEL_NAME` use default values if not explicitly set.
 
 ## Inference Logging Contract
 
@@ -346,7 +348,7 @@ It emits only:
 
 - `[START] task=... env=... model=...`
 - `[STEP] step=... action=... reward=... done=... error=...`
-- `[END] success=... steps=... score=... rewards=...`
+- `[END] success=... steps=... rewards=...`
 
 No extra stdout noise should be emitted during evaluation.
 
