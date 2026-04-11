@@ -18,12 +18,11 @@ from rl_agent import DEFAULT_Q_TABLE_PATH, QLearningEmergencyAgent
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "openai/gpt-4.1-mini")
 HF_TOKEN = os.getenv("HF_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
 BENCHMARK = os.getenv("OPENENV_BENCHMARK", "emergency_first_response_decision_engine")
 
-if HF_TOKEN is None and OPENAI_API_KEY is None:
-    raise ValueError("Either HF_TOKEN or OPENAI_API_KEY environment variable is required")
+if HF_TOKEN is None:
+    raise ValueError("HF_TOKEN environment variable is required")
 
 
 class BaselineEmergencyAgent:
@@ -120,7 +119,7 @@ def build_client() -> OpenAI | None:
         return None
     return OpenAI(
         base_url=API_BASE_URL.rstrip("/"),
-        api_key=OPENAI_API_KEY or HF_TOKEN,
+        api_key=HF_TOKEN,
         max_retries=0,
         timeout=3.0,
     )
@@ -130,19 +129,19 @@ def log_start(task: str) -> None:
     print(f"[START] task={task} env={BENCHMARK} model={MODEL_NAME}", flush=True)
 
 
+def _single_line(value: str) -> str:
+    return " ".join(value.split())
+
+
 def log_step(step: int, action: str, reward: float, done: bool, error: str | None) -> None:
-    error_value = error if error else "null"
+    error_value = _single_line(error) if error else "null"
     print(
-        f"[STEP] step={step} action={action} reward={reward:.2f} done={str(done).lower()} error={error_value}",
+        f"[STEP] step={step} action={_single_line(action)} reward={reward:.2f} done={str(done).lower()} error={error_value}",
         flush=True,
     )
 
-
-def log_end(success: bool, steps: int, rewards: list[float]) -> None:
+def log_end(success: bool, steps: int, score: float, rewards: list[float]) -> None:
     rewards_str = ",".join(f"{reward:.2f}" for reward in rewards)
-    score = 0.01
-    if rewards:
-        score = max(0.01, min(0.99, rewards[-1]))
     print(
         f"[END] success={str(success).lower()} steps={steps} score={score:.2f} rewards={rewards_str}",
         flush=True,
@@ -170,6 +169,7 @@ def main() -> None:
         rewards: list[float] = []
         steps_taken = 0
         success = False
+        final_score = 0.01
         log_start(task_id)
 
         try:
@@ -184,6 +184,7 @@ def main() -> None:
                 try:
                     observation, reward, done, info = environment.step(Action(action_type=action))
                     success = bool(info.get("success", False))
+                    final_score = max(0.01, min(0.99, float(info.get("score_so_far", 0.01))))
                 except Exception as exc:
                     reward = 0.01
                     done = True
@@ -194,7 +195,14 @@ def main() -> None:
                 log_step(step_number, action.value, reward, done, error)
 
         finally:
-            log_end(success, steps_taken, rewards)
+            if hasattr(environment, "close"):
+                try:
+                    environment.close()
+                except Exception:
+                    pass
+            if rewards:
+                rewards[-1] = max(0.01, min(0.99, rewards[-1]))
+            log_end(success, steps_taken, final_score, rewards)
 
 
 if __name__ == "__main__":
