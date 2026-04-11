@@ -56,15 +56,15 @@ class EmergencyFirstResponseDecisionEngine:
     def step(self, action: Action) -> tuple[Observation, float, bool, dict[str, Any]]:
         if self._state.done:
             observation = self._build_observation()
-            return observation, 0.0, True, self._build_info(termination_locked=True)
+            return observation, self._bounded_metric(0.0), True, self._build_info(termination_locked=True)
 
         available_actions = self._available_actions()
         if action.action_type not in available_actions:
             self._state.last_action_effect = "Invalid action ignored."
             observation = self._build_observation()
             reward_signal = self._build_reward_signal(
-                action_reward=-0.2,
-                total_reward=-0.2,
+                action_reward=self._bounded_metric(-0.2),
+                total_reward=self._bounded_metric(-0.2),
                 time_decay_factor=1.0,
                 reason=self._grader.explain_reward(
                     self._state.task_id,
@@ -79,7 +79,7 @@ class EmergencyFirstResponseDecisionEngine:
             )
             info = self._build_info(reward_signal=reward_signal)
             info["error"] = "invalid_action"
-            return observation, -0.2, False, info
+            return observation, self._bounded_metric(-0.2), False, info
 
         prior_state = self._state.model_copy(deep=True)
         reward = -0.2
@@ -134,14 +134,14 @@ class EmergencyFirstResponseDecisionEngine:
         )
         observation = self._build_observation()
         reward_signal = self._build_reward_signal(
-            action_reward=round(action_delta, 3),
-            total_reward=round(reward, 3),
+            action_reward=self._bounded_metric(action_delta),
+            total_reward=self._bounded_metric(reward),
             time_decay_factor=time_decay_factor,
             reason=reason,
             components={key: round(value, 3) for key, value in reward_components.items()},
         )
         info = self._build_info(reward_signal=reward_signal)
-        return observation, round(reward, 3), self._state.done, info
+        return observation, self._bounded_metric(reward), self._state.done, info
 
     def state(self) -> InternalState:
         return self._state.model_copy(deep=True)
@@ -195,7 +195,9 @@ class EmergencyFirstResponseDecisionEngine:
             "difficulty": self._state.difficulty.value,
             "termination_reason": self._state.termination_reason,
             "success": self._state.success,
-            "score_so_far": self._grader.grade_task(self._state.task_id, self._state.actions_taken),
+            "score_so_far": self._bounded_metric(
+                self._grader.grade_task(self._state.task_id, self._state.actions_taken)
+            ),
             "optimal_sequence": [action.value for action in self._state.optimal_sequence],
             "termination_locked": termination_locked,
             "reward_signal": reward_signal.model_dump() if reward_signal else None,
@@ -210,14 +212,17 @@ class EmergencyFirstResponseDecisionEngine:
         components: dict[str, float],
     ) -> RewardSignal:
         return RewardSignal(
-            action_reward=round(action_reward, 3),
+            action_reward=self._bounded_metric(action_reward),
             reason=reason,
             time_decay_factor=round(time_decay_factor, 3),
-            total=round(total_reward, 3),
-            value=round(total_reward, 3),
+            total=self._bounded_metric(total_reward),
+            value=self._bounded_metric(total_reward),
             components=components,
             rationale=reason,
         )
+
+    def _bounded_metric(self, value: float) -> float:
+        return round(max(0.01, min(0.99, value)), 3)
 
     def _apply_action(self, action: ActionType, effects: list[str]) -> tuple[float, dict[str, float]]:
         task_id = self._state.task_id
