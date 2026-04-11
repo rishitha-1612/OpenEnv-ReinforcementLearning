@@ -56,15 +56,16 @@ class EmergencyFirstResponseDecisionEngine:
     def step(self, action: Action) -> tuple[Observation, float, bool, dict[str, Any]]:
         if self._state.done:
             observation = self._build_observation()
-            return observation, 0.0, True, self._build_info(termination_locked=True)
+            return observation, 0.5, True, self._build_info(termination_locked=True)
 
         available_actions = self._available_actions()
         if action.action_type not in available_actions:
             self._state.last_action_effect = "Invalid action ignored."
             observation = self._build_observation()
+            normalized_reward = self._normalize_reward(-0.2)
             reward_signal = self._build_reward_signal(
-                action_reward=-0.2,
-                total_reward=-0.2,
+                action_reward=self._normalize_reward(-0.2),
+                total_reward=normalized_reward,
                 time_decay_factor=1.0,
                 reason=self._grader.explain_reward(
                     self._state.task_id,
@@ -75,11 +76,12 @@ class EmergencyFirstResponseDecisionEngine:
                     1.0,
                     invalid_action=True,
                 ),
-                components={"invalid_action_penalty": -0.2},
+                components={"invalid_action_penalty": self._normalize_reward(-0.2)},
             )
             info = self._build_info(reward_signal=reward_signal)
             info["error"] = "invalid_action"
-            return observation, -0.2, False, info
+            info["raw_reward"] = "-0.2"
+            return observation, normalized_reward, False, info
 
         prior_state = self._state.model_copy(deep=True)
         raw_reward = -0.2
@@ -135,17 +137,17 @@ class EmergencyFirstResponseDecisionEngine:
         observation = self._build_observation()
         normalized_reward = self._normalize_reward(raw_reward)
         reward_signal = self._build_reward_signal(
-            action_reward=round(action_delta, 3),
+            action_reward=self._normalize_reward(action_delta),
             total_reward=normalized_reward,
             time_decay_factor=time_decay_factor,
             reason=reason,
             components={
-                key: round(value, 3) for key, value in reward_components.items()
-            }
-            | {"raw_total_reward": round(raw_reward, 3)},
+                key: self._normalize_reward(value)
+                for key, value in reward_components.items()
+            },
         )
         info = self._build_info(reward_signal=reward_signal)
-        info["raw_reward"] = round(raw_reward, 3)
+        info["raw_reward"] = f"{raw_reward:.3f}"
         return observation, normalized_reward, self._state.done, info
 
     def state(self) -> InternalState:
@@ -225,10 +227,10 @@ class EmergencyFirstResponseDecisionEngine:
         )
 
     def _normalize_reward(self, raw_reward: float) -> float:
-        # Map dense clinical shaping into the validator-friendly [0.0, 1.0] range
+        # Map dense clinical shaping into the validator-friendly strict (0, 1) range
         # while keeping 0.5 as a neutral step and preserving raw reward in metadata.
         normalized = 0.5 + (raw_reward / 12.0)
-        return round(max(0.0, min(1.0, normalized)), 3)
+        return round(max(0.05, min(0.95, normalized)), 3)
 
     def _apply_action(self, action: ActionType, effects: list[str]) -> tuple[float, dict[str, float]]:
         task_id = self._state.task_id

@@ -115,7 +115,7 @@ def reset_environment(payload: ResetRequest | None = Body(default=None)) -> Step
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return StepOutput(
         observation=observation,
-        reward=0.0,
+        reward=0.5,
         done=False,
         info={
             "task_id": observation.task_id,
