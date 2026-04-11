@@ -4,10 +4,7 @@ import json
 import os
 from typing import Any
 
-try:
-    from openai import OpenAI
-except ModuleNotFoundError:  # pragma: no cover - local fallback when deps are not installed
-    OpenAI = None  # type: ignore[assignment]
+from openai import OpenAI
 
 from environment.env import EmergencyFirstResponseDecisionEngine
 from environment.models import Action, ActionType, Observation
@@ -18,7 +15,6 @@ from rl_agent import DEFAULT_Q_TABLE_PATH, QLearningEmergencyAgent
 API_BASE_URL = os.getenv("API_BASE_URL", "https://router.huggingface.co/v1")
 MODEL_NAME = os.getenv("MODEL_NAME", "openai/gpt-4.1-mini")
 HF_TOKEN = os.getenv("HF_TOKEN")
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
 BENCHMARK = os.getenv("OPENENV_BENCHMARK", "emergency_first_response_decision_engine")
 
@@ -115,9 +111,7 @@ class BaselineEmergencyAgent:
         return ActionType.MONITOR_PATIENT
 
 
-def build_client() -> OpenAI | None:
-    if OpenAI is None:
-        return None
+def build_client() -> OpenAI:
     return OpenAI(base_url=API_BASE_URL.rstrip("/"), api_key=HF_TOKEN, max_retries=0, timeout=3.0)
 
 
@@ -173,6 +167,7 @@ def main() -> None:
                 try:
                     observation, reward, done, info = environment.step(Action(action_type=action))
                     success = bool(info.get("success", False))
+                    error = info.get("error") if isinstance(info.get("error"), str) else None
                 except Exception as exc:
                     reward = 0.0
                     done = True
