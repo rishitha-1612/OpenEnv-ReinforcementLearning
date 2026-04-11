@@ -217,11 +217,11 @@ class EmergencyFirstResponseDecisionEngine:
         components: dict[str, float],
     ) -> RewardSignal:
         return RewardSignal(
-            action_reward=round(action_reward, 3),
+            action_reward=round(action_reward, 2),
             reason=reason,
-            time_decay_factor=round(time_decay_factor, 3),
-            total=round(total_reward, 3),
-            value=round(total_reward, 3),
+            time_decay_factor=round(time_decay_factor, 2),
+            total=round(total_reward, 2),
+            value=round(total_reward, 2),
             components=components,
             rationale=reason,
         )
@@ -230,7 +230,7 @@ class EmergencyFirstResponseDecisionEngine:
         # Map dense clinical shaping into the validator-friendly strict (0, 1) range
         # while keeping 0.5 as a neutral step and preserving raw reward in metadata.
         normalized = 0.5 + (raw_reward / 12.0)
-        return round(max(0.05, min(0.95, normalized)), 3)
+        return round(max(0.01, min(0.99, normalized)), 2)
 
     def _apply_action(self, action: ActionType, effects: list[str]) -> tuple[float, dict[str, float]]:
         task_id = self._state.task_id

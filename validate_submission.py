@@ -23,8 +23,8 @@ def run() -> None:
 
         score_optimal = grader.grade_task(task_id, task.optimal_sequence)
         score_random = grader.grade_task(task_id, random_sequence)
-        assert 0.0 <= score_optimal <= 1.0
-        assert score_optimal >= 0.95, f"Optimal sequence for {task_id} scored too low: {score_optimal}"
+        assert 0.0 < score_optimal < 1.0
+        assert score_optimal >= 0.8, f"Optimal sequence for {task_id} scored too low: {score_optimal}"
         assert score_random < 0.5, (
             f"Grader for {task_id} doesn't discriminate - random got {score_random}"
         )

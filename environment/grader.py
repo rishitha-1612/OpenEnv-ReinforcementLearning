@@ -196,11 +196,10 @@ class EmergencyTaskGrader:
         return self._finalize_score(correctness + efficiency + safety)
 
     def _finalize_score(self, score: float) -> float:
-        # Submission validator requires task scores to stay strictly inside (0, 1).
-        # Use conservative margins so no serialization or rounding step can make
-        # values look like 0.0 or 1.0 to an external validator.
-        clamped = max(0.05, min(0.95, score))
-        return round(clamped, 4)
+        # Keep scores strictly inside (0, 1) and quantized to two decimals so
+        # external validators do not see 0.0 or 1.0 after formatting.
+        clamped = max(0.01, min(0.99, score))
+        return round(clamped, 2)
 
     def _normalize(self, actions: Iterable[ActionType | str]) -> list[ActionType]:
         return [action if isinstance(action, ActionType) else ActionType(action) for action in actions]
