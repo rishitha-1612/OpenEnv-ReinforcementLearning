@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from environment.env import EmergencyFirstResponseDecisionEngine
-from environment.models import Action, ResetRequest, StepOutput
+from environment.models import Action, InternalState, Observation, ResetRequest, StepOutput
 from environment.tasks import TASKS
 
 
@@ -24,9 +24,47 @@ FRONTEND_DIST = Path(__file__).parent / "frontend" / "dist"
 FRONTEND_INDEX = FRONTEND_DIST / "index.html"
 
 
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "healthy"}
+
+
 @app.get("/healthz")
 def healthcheck() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/metadata")
+def metadata() -> dict[str, str]:
+    return {
+        "name": "Emergency First-Response Decision Engine",
+        "description": (
+            "OpenEnv-compatible emergency decision-support benchmark for cardiac arrest, "
+            "hemorrhage, airway compromise, and deceptive trauma scenarios."
+        ),
+        "version": "1.0.0",
+    }
+
+
+@app.get("/schema")
+def schema() -> dict[str, object]:
+    return {
+        "action": Action.model_json_schema(),
+        "observation": Observation.model_json_schema(),
+        "state": InternalState.model_json_schema(),
+    }
+
+
+@app.post("/mcp")
+def mcp() -> dict[str, object]:
+    return {
+        "jsonrpc": "2.0",
+        "id": None,
+        "error": {
+            "code": -32600,
+            "message": "MCP method not implemented for this simulation environment.",
+        },
+    }
 
 
 @app.get("/state")

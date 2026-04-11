@@ -22,8 +22,8 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 LOCAL_IMAGE_NAME = os.getenv("LOCAL_IMAGE_NAME")
 BENCHMARK = os.getenv("OPENENV_BENCHMARK", "emergency_first_response_decision_engine")
 
-if HF_TOKEN is None:
-    raise ValueError("HF_TOKEN environment variable is required")
+if HF_TOKEN is None and OPENAI_API_KEY is None:
+    raise ValueError("Either HF_TOKEN or OPENAI_API_KEY environment variable is required")
 
 
 class BaselineEmergencyAgent:
@@ -118,7 +118,12 @@ class BaselineEmergencyAgent:
 def build_client() -> OpenAI | None:
     if OpenAI is None:
         return None
-    return OpenAI(base_url=API_BASE_URL.rstrip("/"), api_key=HF_TOKEN, max_retries=0, timeout=3.0)
+    return OpenAI(
+        base_url=API_BASE_URL.rstrip("/"),
+        api_key=OPENAI_API_KEY or HF_TOKEN,
+        max_retries=0,
+        timeout=3.0,
+    )
 
 
 def log_start(task: str) -> None:

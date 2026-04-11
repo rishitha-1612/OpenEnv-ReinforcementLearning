@@ -1,61 +1,7 @@
-name: Emergency First-Response Decision Engine
-description: Deterministic decision-support environment for non-expert first responders managing cardiac arrest, hemorrhage, airway compromise, and deceptive trauma workflows.
-version: 1.0.0
-entrypoint: environment.env:EmergencyFirstResponseDecisionEngine
-observation_model: environment.models:Observation
-action_model: environment.models:Action
-reward_model: environment.models:RewardSignal
-tasks:
-  - id: cardiac_arrest_easy
-    difficulty: easy
-    description: Clear cardiac arrest case with visible AED access and an obvious first intervention.
-    grader: environment.grader:EmergencyTaskGrader.grade_easy
-    optimal_sequence:
-      - CALL_EMERGENCY
-      - CHECK_BREATHING
-      - START_CPR
-      - USE_AED
-      - MONITOR_PATIENT
-  - id: severe_bleeding_medium
-    difficulty: medium
-    description: Severe external bleeding with partial physiological visibility and sequential care requirements.
-    grader: environment.grader:EmergencyTaskGrader.grade_medium
-    optimal_sequence:
-      - CHECK_SCENE_SAFETY
-      - CALL_EMERGENCY
-      - APPLY_PRESSURE
-      - CHECK_PULSE
-      - MONITOR_PATIENT
-  - id: road_accident_hard
-    difficulty: hard
-    description: Deceptive roadside trauma where minor visible bleeding hides evolving internal hemorrhagic shock.
-    grader: environment.grader:EmergencyTaskGrader.grade_hard
-    optimal_sequence:
-      - CHECK_SCENE_SAFETY
-      - CHECK_BREATHING
-      - CONTROL_AIRWAY
-      - CALL_EMERGENCY
-      - CHECK_PULSE
-      - APPLY_PRESSURE
-      - MONITOR_PATIENT
-  - id: anaphylaxis_medium
-    difficulty: medium
-    description: Severe allergic reaction with airway compromise where breathing assessment must precede airway support.
-    grader: environment.grader:EmergencyTaskGrader.grade_anaphylaxis
-    optimal_sequence:
-      - CHECK_SCENE_SAFETY
-      - CALL_EMERGENCY
-      - CHECK_BREATHING
-      - CONTROL_AIRWAY
-      - CHECK_PULSE
-      - MONITOR_PATIENT
-  - id: choking_easy
-    difficulty: easy
-    description: Obvious choking case where delays are heavily penalized and airway control is urgent.
-    grader: environment.grader:EmergencyTaskGrader.grade_choking
-    optimal_sequence:
-      - CHECK_RESPONSIVENESS
-      - CALL_EMERGENCY
-      - CONTROL_AIRWAY
-      - CHECK_BREATHING
-      - MONITOR_PATIENT
+spec_version: 1
+name: emergency-first-response-decision-engine
+description: Deterministic first-response triage and intervention benchmark for emergency decision support under partial observability.
+type: space
+runtime: fastapi
+app: app:app
+port: 8000

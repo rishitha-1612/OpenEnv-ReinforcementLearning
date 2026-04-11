@@ -82,7 +82,7 @@ class EmergencyFirstResponseDecisionEngine:
             return observation, -0.2, False, info
 
         prior_state = self._state.model_copy(deep=True)
-        reward = -0.2
+        raw_reward = -0.2
         reward_components: dict[str, float] = {"base_step_cost": -0.2}
         effect_messages: list[str] = []
         chosen_action = action.action_type
@@ -90,12 +90,12 @@ class EmergencyFirstResponseDecisionEngine:
         time_decay_factor = 1.0
 
         if prior_actions and prior_actions[-1] == chosen_action:
-            reward -= 0.6
+            raw_reward -= 0.6
             reward_components["repeat_penalty"] = -0.6
             effect_messages.append("Action repeated without reassessment.")
 
         action_delta, action_metadata = self._apply_action(chosen_action, effect_messages)
-        reward += action_delta
+        raw_reward += action_delta
         reward_components["action_reward"] = action_delta
         reward_components.update(action_metadata)
         time_decay_factor = action_metadata.get("critical_action_time_factor", 1.0)
@@ -106,13 +106,13 @@ class EmergencyFirstResponseDecisionEngine:
 
         deterioration_penalty = self._apply_deterioration(effect_messages)
         if deterioration_penalty != 0.0:
-            reward += deterioration_penalty
+            raw_reward += deterioration_penalty
             reward_components["deterioration_penalty"] = deterioration_penalty
 
         self._state.time_elapsed += 1
 
         progression_delta = self._apply_progression(effect_messages)
-        reward += progression_delta
+        raw_reward += progression_delta
         reward_components["progression_delta"] = progression_delta
 
         self._update_observed_condition()
@@ -120,7 +120,7 @@ class EmergencyFirstResponseDecisionEngine:
 
         if self._state.done:
             terminal_delta = 5.0 if self._state.success else -5.0
-            reward += terminal_delta
+            raw_reward += terminal_delta
             reward_components["terminal_delta"] = terminal_delta
 
         self._state.last_action_effect = " ".join(effect_messages) if effect_messages else "No meaningful change."
@@ -133,15 +133,20 @@ class EmergencyFirstResponseDecisionEngine:
             time_decay_factor,
         )
         observation = self._build_observation()
+        normalized_reward = self._normalize_reward(raw_reward)
         reward_signal = self._build_reward_signal(
             action_reward=round(action_delta, 3),
-            total_reward=round(reward, 3),
+            total_reward=normalized_reward,
             time_decay_factor=time_decay_factor,
             reason=reason,
-            components={key: round(value, 3) for key, value in reward_components.items()},
+            components={
+                key: round(value, 3) for key, value in reward_components.items()
+            }
+            | {"raw_total_reward": round(raw_reward, 3)},
         )
         info = self._build_info(reward_signal=reward_signal)
-        return observation, round(reward, 3), self._state.done, info
+        info["raw_reward"] = round(raw_reward, 3)
+        return observation, normalized_reward, self._state.done, info
 
     def state(self) -> InternalState:
         return self._state.model_copy(deep=True)
@@ -218,6 +223,12 @@ class EmergencyFirstResponseDecisionEngine:
             components=components,
             rationale=reason,
         )
+
+    def _normalize_reward(self, raw_reward: float) -> float:
+        # Map dense clinical shaping into the validator-friendly [0.0, 1.0] range
+        # while keeping 0.5 as a neutral step and preserving raw reward in metadata.
+        normalized = 0.5 + (raw_reward / 12.0)
+        return round(max(0.0, min(1.0, normalized)), 3)
 
     def _apply_action(self, action: ActionType, effects: list[str]) -> tuple[float, dict[str, float]]:
         task_id = self._state.task_id

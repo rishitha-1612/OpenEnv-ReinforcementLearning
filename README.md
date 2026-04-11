@@ -1,7 +1,7 @@
 ---
 title: Emergency First-Response Decision Engine
 sdk: docker
-app_port: 7860
+app_port: 8000
 tags:
   - openenv
   - fastapi
@@ -413,7 +413,7 @@ npm run dev
 
 This repository is prepared for Docker-based Hugging Face Space deployment:
 
-- root service responds on `${PORT:-7860}`
+- root service responds on `${PORT:-8000}`
 - frontend and backend are served from one container
 - README includes Space metadata
 - project is tagged with `openenv`
